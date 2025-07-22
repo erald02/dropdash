@@ -7,6 +7,11 @@ use qrcode::render::unicode;
 use local_ip_address::local_ip;
 use tokio::sync::oneshot;
 
+struct Prepared {
+    addr: SocketAddr,
+    duration: Duration,
+}
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -46,24 +51,7 @@ async fn main() {
 async fn oneshot_server(file_contents: Vec<u8>, file_name: String, timeout: String) {
     use std::sync::{Arc, Mutex};
 
-    let addr = {
-        let ip = local_ip().expect("Could not get local IP");
-        let addr: SocketAddr = (ip, 8080).into();
-
-        let url = format!("http://{}:{}", ip, 8080);
-        println!("File available at: {}", url);
-
-        let code = QrCode::new(url.as_bytes()).unwrap();
-        let image = code.render::<unicode::Dense1x2>()
-            .quiet_zone(false)
-            .build();
-        println!("{}", image);
-
-        addr
-    };
-
-    let duration: Duration = humantime::parse_duration(&timeout)
-        .expect("Invalid duration");
+    let prepared = prepare_stuff(&timeout);
 
     let (download_tx, download_rx) = oneshot::channel::<()>();
     let shutdown_signal = Arc::new(Mutex::new(Some(download_tx)));
@@ -89,25 +77,25 @@ async fn oneshot_server(file_contents: Vec<u8>, file_name: String, timeout: Stri
         }
     });
 
-    let shutdown = async {
+    let shutdown = async move {
         tokio::select! {
             _ = download_rx => {
-                println!("File downloaded — shutting down.");
+                println!("📥 File downloaded — shutting down.");
             }
-            _ = time::sleep(duration) => {
-                println!("Timeout reached — shutting down.");
+            _ = time::sleep(prepared.duration) => {
+                println!("⏱ Timeout reached — shutting down.");
             }
         }
     };
 
     warp::serve(filter)
-        .bind_with_graceful_shutdown(addr, shutdown)
+        .bind_with_graceful_shutdown(prepared.addr, shutdown)
         .1
         .await;
 }
 
 async fn up_server(file_contents: Vec<u8>, file_name: String, timeout: String) {
-    let (shutdown_signal, addr) = prepare_stuff(&timeout);
+    let prepared = prepare_stuff(&timeout);
 
     let file = warp::any().map(move || {
         warp::http::Response::builder()
@@ -120,13 +108,18 @@ async fn up_server(file_contents: Vec<u8>, file_name: String, timeout: String) {
             .unwrap()
     });
 
+    let shutdown = async move {
+        time::sleep(prepared.duration).await;
+        println!("⏱ Timeout reached — shutting down.");
+    };
+
     warp::serve(file)
-        .bind_with_graceful_shutdown(addr, shutdown_signal)
+        .bind_with_graceful_shutdown(prepared.addr, shutdown)
         .1
         .await;
 }
 
-fn prepare_stuff(timeout: &str) -> (impl std::future::Future<Output = ()>, SocketAddr) {
+fn prepare_stuff(timeout: &str) -> Prepared {
     let ip: IpAddr = local_ip().expect("Could not get local IP");
     let addr: SocketAddr = (ip, 8080).into();
 
@@ -142,10 +135,5 @@ fn prepare_stuff(timeout: &str) -> (impl std::future::Future<Output = ()>, Socke
     let duration: Duration = humantime::parse_duration(timeout)
         .expect("Invalid duration");
 
-    let shutdown = async move {
-        time::sleep(duration).await;
-        println!("⏱ Timeout reached. Shutting down.");
-    };
-
-    (shutdown, addr)
+    Prepared { addr, duration }
 }
