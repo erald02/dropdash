@@ -313,6 +313,7 @@ dependencies = [
  "image 0.24.9",
  "local-ip-address",
  "qrcode",
+ "serde_json",
  "tokio",
  "warp",
 ]
@@ -327,6 +328,7 @@ dependencies = [
  "local-ip-address",
  "mdns-sd",
  "qrcode",
+ "serde",
  "serde_json",
  "tokio",
  "uuid",
