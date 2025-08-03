@@ -13,12 +13,13 @@ pub async fn handle_connection(mut socket: TcpStream, shared_files: SharedFiles)
         if let Ok(add_cmd) = serde_json::from_str::<AddCommand>(&line) {
             if add_cmd.cmd == "add" {
                 let path = PathBuf::from(&add_cmd.path);
+                let size = add_cmd.size;
                 let name = path.file_name().unwrap().to_string_lossy().to_string();
                 let id = Uuid::new_v4().to_string();
                 
                 shared_files.lock().unwrap().insert(
                     id.clone(),
-                    FileEntry { id: id.clone(), name: name.clone(), path },
+                    FileEntry { id: id.clone(), name: name.clone(), path, size},
                 );
                 
                 let response = serde_json::json!({ "status": "ok", "id": id, "name": name });

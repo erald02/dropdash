@@ -3,9 +3,9 @@ use crate::types::FileEntry;
 
 pub type SharedFiles = Arc<Mutex<HashMap<String, FileEntry>>>;
 
-pub fn available_files(shared_files: SharedFiles) -> Vec<(String, String)> {
+pub fn available_files(shared_files: SharedFiles) -> Vec<(String, String, u64)> {
     shared_files.lock().unwrap().values()
-        .map(|entry| (entry.name.clone(), entry.id.clone()))
+        .map(|entry| (entry.id.clone(), entry.name.clone(), entry.size.clone()))
         .collect()
 }
 
