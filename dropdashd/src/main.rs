@@ -7,7 +7,7 @@ mod control;
 mod api;
 mod mdns;
 
-use files::SharedFiles;
+use files::{SharedFiles, SharedClip};
 use control::start_control_server;
 use api::build_routes;
 use mdns::register_mdns;
@@ -17,6 +17,7 @@ async fn main() {
     println!("🚀 dropdashd started");
 
     let shared_files: SharedFiles = Arc::new(Mutex::new(HashMap::new()));
+    let shared_clips: SharedClip = Arc::new(Mutex::new(HashMap::new()));
     let ip = local_ip_address::local_ip().expect("Could not get local IP");
     let addr: std::net::SocketAddr = (ip, 8080).into();
 
@@ -29,8 +30,8 @@ async fn main() {
         .build();
     println!("{}", image);
 
-    tokio::spawn(start_control_server(shared_files.clone()));
+    tokio::spawn(start_control_server(shared_files.clone(), shared_clips.clone()));
 
-    let routes = build_routes(shared_files.clone());
+    let routes = build_routes(shared_files.clone(), shared_clips.clone());
     warp::serve(routes).run(addr).await;
 }

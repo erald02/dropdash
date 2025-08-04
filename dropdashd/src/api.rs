@@ -1,21 +1,29 @@
+use serde_json::json;
 use warp::Filter;
-use crate::files::{SharedFiles, available_files, fetch_files_by_id};
-use std::fs;
+use crate::files::{available_files, fetch_files_by_id, available_copies, SharedClip, SharedFiles};
+use std::{fs};
 
-pub fn build_routes(shared_files: SharedFiles) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn build_routes(shared_files: SharedFiles, shared_clips: SharedClip) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     health_route()
-        .or(file_list_route(shared_files.clone()))
-        .or(file_download_route(shared_files.clone()))
+        .or(file_list_route(shared_files.clone(), shared_clips))
+        .or(file_download_route(shared_files))
 }
 
 fn health_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path("health").map(|| "OK")
 }
 
-fn file_list_route(shared_files: SharedFiles) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn file_list_route(shared_files: SharedFiles, shared_clips: SharedClip) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path::end().map(move || {
-        let files = available_files(shared_files.clone());
-        warp::reply::json(&files)
+        let files = available_files(shared_files.clone());     // Vec<(String, String)>
+        let clips = available_copies(shared_clips.clone());    // Vec<(String, String, String)>
+
+        let response = json!({
+            "files": files,
+            "copies": clips
+        });
+
+        warp::reply::json(&response)
     })
 }
 
